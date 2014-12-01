@@ -1,0 +1,11 @@
+b7483a4d1af514881131b71f28be7d3e *DESCRIPTION
+e373f3dea7320002e942626e0cd2f873 *NAMESPACE
+b84275000fdcb9d9471751f8c5b7a4f1 *R/aaa.R
+b8f6520fff9ef6ece36d18d2fa34e8a1 *R/expanders.R
+570adc5504d6f7aa54b123b195d2f023 *R/fbase.1par.R
+fc3b1b2dde3dcf743159611a82672001 *man/fbase.bern.ilogit.Rd
+ca9ce0c08892c019ce7cc59d31598f45 *man/fbase.exp.exp.Rd
+d044de6f8653381a8cdf2c59fa1e4350 *man/fbase.geo.ilogit.Rd
+db358888361eb3721819f830cddbb9fe *man/fbase.pois.exp.Rd
+61549150115ffb519c7934aceb75c938 *man/regfac.expand.1par.Rd
+47438dcedddeec344167cb4008765e67 *man/regfac.expand.2par.Rd

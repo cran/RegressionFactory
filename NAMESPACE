@@ -1,0 +1,5 @@
+#exportPattern("^[[:alpha:]]+")
+
+export(regfac.expand.1par, regfac.expand.2par
+  , fbase.bern.ilogit, fbase.pois.exp, fbase.exp.exp, fbase.geo.ilogit)
+
