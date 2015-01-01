@@ -1,0 +1,9 @@
+Changes in version 0.7.1
+  * Added source file for 2-parameter base distributions (fbase.2par.R)
+  * Added examples for each base distribution
+  * Added vignette
+  * Added fgh flag to base and expander functions for returning derivatives or not
+  * Added ... as additional argument for expander and base functions
+  * Added utility function regfac.merge for combining output of two functions, each containing an f,g,h list
+  * Change naming convention for base distributions (using fbase1 and fbase2, and link functions)
+

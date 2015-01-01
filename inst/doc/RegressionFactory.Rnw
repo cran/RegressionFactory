@@ -1,0 +1,583 @@
+\documentclass[nojss]{jss}
+%\documentclass[codesnippet]{jss}
+%\documentclass{jss}
+\usepackage[latin1]{inputenc}
+%\pdfoutput=1
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{color}
+%\usepackage[toc]{appendix}
+\usepackage{amsthm}
+
+%\VignetteIndexEntry{Expander Framework for Generating High-Dimensional GLM Gradient and Hessian from Low-Dimensional Base Distributions: R Package MfUSampler}
+%\VignetteKeyword{negative definiteness, regression, optimization, sampling}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Definitions 
+% Vectors, Tensors
+\def\vect#1{{\vec{#1}}}                               % Fancy vector
+\def\tensor#1{{\mathbf{#1}}}                          % 2nd rank tensor
+\def\mat#1{{\mathbf{#1}}}                        % matrix
+\def\dotP#1#2{\vect{#1}\cdot\vect{#2}}		      % Dot product
+% Derivatives
+\def\deriv#1#2{\frac{d{}#1}{d{}#2}}                   % derivtive
+\def\partderiv#1#2{\frac{\partial{}#1}{\partial{}#2}} % partial derivtive
+% Math functions
+\def\log#1{\text{log}\left(#1\right)}
+% Statistics
+\def\prob#1{\Prob\left(#1\right)}		      % probability
+
+\newcommand{\bbeta}{\boldsymbol\beta}
+\newcommand{\ggamma}{\boldsymbol\gamma}
+\newcommand{\xx}{\mathbf{x}}
+\newcommand{\yy}{\mathbf{y}}
+\newcommand{\XX}{\mathbf{X}}
+\newcommand{\llog}{\mathrm{log}}
+\newcommand{\sigmamax}{\sigma_{\mathrm{max}}}
+\newcommand{\dd}{\mathrm{d}}
+\newtheorem{lemma}{Lemma}
+\newcommand{\g}{\mathbf{g}}
+\newcommand{\G}{\mathbf{G}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\HH}{\mathbf{H}}
+\newcommand{\hh}{\mathbf{h}}
+\newcommand{\ttheta}{\boldsymbol\theta}
+\newcommand{\eeta}{\boldsymbol\eta}
+\newcommand{\TT}{\mathbf{T}}
+\newcommand{\pp}{\mathbf{p}}
+\newcommand{\qq}{\mathbf{q}}
+\newcommand{\PP}{\mathrm{P}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% declarations for jss.cls %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% almost as usual
+
+\author{Alireza S. Mahani\\ Scientific Computing Group \\ Sentrana Inc. \And
+Mansour T.A. Sharabiani\\ National Heart and Lung Institute \\ Imperial College London}
+\title{Expander Framework for Generating High-Dimensional GLM Gradient and Hessian from Low-Dimensional Base Distributions: \proglang{R} Package \pkg{RegressionFactory}}
+
+%% for pretty printing and a nice hypersummary also set:
+\Plainauthor{Alireza S. Mahani, Mansour T.A. Sharabiani} %% comma-separated
+\Plaintitle{Expander Functions for Generating High-Dimensional Gradient and Hessian from Low-Dimensional Base Distributions: R Package RegressionFactory} %% without formatting
+\Shorttitle{Regression Expander Functions: \proglang{R} Package \pkg{RegressionFactory}} %% a short title (if necessary)
+
+%% an abstract and keywords
+\Abstract{ 
+The \proglang{R} package \pkg{RegressionFactory} provides expander functions for constructing the high-dimensional gradient vector and Hessian matrix of the log-likelihood function for generalized linear models, from the lower-dimensional base-distribution derivatives. The software follows a modular implementation using the chain rule of derivatives. Such modularity offers a clear separation of case-specific components (base distribution functional form and link functions) from common steps (e.g., matrix algebra operations needed for expansion) in calculating log-likelihood derivatives. In doing so, \pkg{RegressionFactory} offers several advantages: 1) It provides a fast and convenient method for constructing log-likelihood and its derivatives by requiring only the low-dimensional, base-distribution derivatives, 2) The accompanying definiteness-invariance theorem allows researchers to reason about the negative-definiteness of the log-likelihood Hessian in the much lower-dimensional space of the base distributions, 3) The factorized, abstract view of regression suggests opportunities to generate novel regression models, and 4) Computational techniques for performance optimization can be developed generically in the abstract framework and be readily applicable across all the specific regression instances.
+}
+\Keywords{negative definiteness, regression, optimization, sampling}
+\Plainkeywords{negative definiteness, regression, optimization, sampling} %% without formatting
+%% at least one keyword must be supplied
+
+%% publication information
+%% NOTE: Typically, this can be left commented and will be filled out by the technical editor
+%% \Volume{50}
+%% \Issue{9}
+%% \Month{June}
+%% \Year{2012}
+%% \Submitdate{2012-06-04}
+%% \Acceptdate{2012-06-04}
+
+%% The address of (at least) one author should be given
+%% in the following format:
+\Address{
+Alireza S. Mahani\\
+Scientific Computing Group\\
+Sentrana Inc.\\
+1725 I St NW\\
+Washington, DC 20006\\
+E-mail: \email{alireza.mahani@sentrana.com}\\
+}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+%%\SweaveOpts{concordance=TRUE}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+<<echo=FALSE, results=hide>>=
+options(prompt = "R> ", continue = "+  ", width = 70, useFancyQuotes = FALSE)
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Introduction}\label{section-intro}
+Generalized Linear Models (GLMs)~\citep{mccullagh1989generalized} are one of the most widely-used classes of models in statistical analysis, and their properties have been thoroughly studied and documented (see, for example, \cite{dunteman2006introduction}). Model training and prediction for GLMs often involves Maximum-Likelihood estimation (frequentist approaches) or posterior density estimation (Bayesian approaches), both of which require application of optimization or MCMC sampling techniques to the log-likelihood function or some function containing it. Differentiable functions often benefit from optimization/sampling algorithms that utilize the first and/or second derivative of the function~\citep{press2007numerical}. With proper choice of link functions, many GLMs have log-likelihood functions that are not only twice-differentiable, but also globally-concave~\citep{gilks1992adaptive}, making them ideal candidates for optimization/sampling routines that take advantage of these properties. For example, the most common optimization approach for GLMs is Iterative Reweighted Least Squares (IRLS)~\citep[Section~6.8.1]{gentle2007matrix}. IRLS is a disguised form of Newton-Raphson optimization~\citep{wright1999numerical}, which uses both the gradient and Hessian of the function, and relies on global concavity for convergence. When Hessian is too expensive to calculate or lacks definiteness, other optimization techniques such as conjugate gradient~\citep[Section~10.6]{press2007numerical} can be used, which still require the first derivative of the function. Among MCMC sampling algorithms, Adaptive Rejection Sampler~\citep{gilks1992adaptive} uses the first derivative and requires concavity of the log-density. Stochastic Newton Sampler~\citep{qi2002hessian,mahani2014sns}, a Metropolis-Hastings sampler using a locally-fitted multivariate Gaussian, uses both first and second derivatives and also requires log-concavity. Other techniques such as Hamiltonian Monte Carlo (HMC)~\citep{neal2011mcmc} use the first derivative of log-density, while their recent adaptations can use second and even third derivative information to adjust the mass matrix to local space geometry~\citep{girolami2011riemann}. Efficient implementation and analysis of GLM derivatives and their properties, therefore, is a key component to our ability to build probabilistic models using the powerful GLM framework.
+
+The \proglang{R} package \pkg{RegressionFactory} contributes to computational research and development on GLM-based statistical models by providing an abstract framework for constructing, and reasoning about, GLM-like log-likelihood functions and their derivatives. Its modular implementation can be viewed as code factorization using the chain rule of derivatives~\citep{apostol1974mathematical}. It offers a clear separation of generic steps (expander functions) from model-specific steps (base functions). New regression models can be readily implemented by supplying their base function implementation. Since base functions are in the much lower-dimensional space of the underlying probability distribution (often a member of the exponential family with one or two parameters), implementation of their derivatives is much easier than doing so in the high-dimensional space of regression coefficients. A by-product of this code refactoring using the chain rule is an invariance theorem governing the negative definiteness of the log-likelihood Hessian. The theorem allows this property to be studied in the base-distribution space, again a much easier task than doing so in the high-dimensional coefficient space. The modular organization of \pkg{RegressionFactory} also allows for performance optimization techniques to be made available across a broad set of regression models. This is particularly true for optimizations applied to expander functions, but also applies to base functions since they share many concepts and operations across models. \pkg{RegressionFactory} contains a lower-level set of tools compared to the facilities provided by mainstream regression utilities such as the \code{glm} command in \proglang{R}, or the package \pkg{dglm}~\citep{dunn2014dglm} for building double (varying-dispersion) GLM models. Therefore, in addition to supporting research on optimization/sampling algorithms for GLMs as well as research on performance optimization for GLM derivative-calculation routines, exposing the log-likelihood derivatives using the modular framework of \pkg{RegressionFactory} allows modelers to construct composite models from GLM lego blocks, including Hierarchical Bayesian models~\citep{gelman2006data}.
+
+The rest of the paper is organized as follows. In Section~\ref{section-theory}, we begin with an overview of GLM models and arrive at our abstract, and expanded, representation of GLM log-likelihoods (\ref{subsection-overview}). We then apply the chain rule of derviatives to this abstract expression to derive two equivalent sets of factorized equations (compact and explicit forms) for computing log-likelihood gradient and Hessian using their base-function counterparts (\ref{subsection-chain-rule}). We use the explicit forms of the equations to prove a negative-definiteness invariance theorem for the log-likelihood Hessian (\ref{subsection-invariance}). Section~\ref{section-implement} discusses the implementation of the aforementioned factorized code in \pkg{RegressionFactory} using the expander functions (\ref{subsection-expanders}) and the base functions (\ref{subsection-base-dist}). In Section~\ref{section-using}, we illustrate the use of \pkg{RegressionFactory} using examples from single-parameter and multi-parameter base functions. Finally, Section~\ref{section-summary} offers a summary of results, and pointers to future research and development directions.
+
+\section{Theory}\label{section-theory}
+In this section we develop the theoretical foundation for \pkg{RegressionFactory}, beginning with an overview of GLM models.
+\subsection{Overview of GLMs}\label{subsection-overview}
+In GLMs, response variable\footnote{To simplify notation, we assume that response variable is scalar, but generalization to vector response variables is straightforward.} $y$ is assumed to be generated from an exponential-family distribution, and its expected value is related to linear predictor $\xx^t \bbeta$ via the link function $g$:
+\begin{equation}\label{equation-glm}
+g(\mathrm{E}(y)) = \xx^t \bbeta.
+\end{equation}
+where $\xx$ is the vector of covariates and $\bbeta$ is the vector of coefficients. For single-parameter distributions, there is often a simple relationship between the distribution parameter and its mean. Combined with Equation~\ref{equation-glm}, this is sufficient to define the distribution in terms of the linear predictor, $\xx^t \bbeta$. For many double-parameter distributions, the distribution can be expressed as
+\begin{equation}\label{equation-dglm}
+f_Y(y; \theta, \Phi) = \exp \{ \frac{y \theta - B(\theta)}{\Phi} + C(y,\Phi) \}
+\end{equation}
+where range of $y$ does not depend on $\theta$ or $\Phi$. This function can be maximized with respect to $\theta$ without knowledge of $\Phi$. Same is true if we have multiple conditionally-independent data points, where log-likelihood takes a summative form. Once $\theta$ is found, we can find $\Phi$ (dispersion parameter) through maximization or method of moments, as done by \code{glm} in \proglang{R}. Generalization to varying-dispersion models is offered in the \proglang{R} package \pkg{dglm}, where both mean and dispersion are assumed to be linear functions of covariates. In \pkg{dglm} estimation is done iteratively by alternating between an ordinary GLM and a dual GLM in which the deviance components of the ordinary GLM appear as responses~\citep{smyth1989generalized}.
+
+In \pkg{RegressionFactory}, we take a more general approach to GLMs that encompasses the \code{glm} and \code{dglm} approaches but is more flexible. Our basic assumption is that log-density for each data point can be written as:
+
+\begin{equation}
+\log {\PP (y \,|\, \{\ \xx^j \}_{j=1,\dots,J})} = f(<\xx^1,\bbeta^1>, \dots, <\xx^J,\bbeta^J> , y)
+\end{equation}
+where $<a,b>$ means inner product of vectors $a$ and $b$. Note that we have absorbed the nonlinearities introduced through one or more link functions into the definition of $f$. For $N$ conditionally-independent observations $y_1,\dots,y_N$, the log-likelihood as a function of coefficients $\bbeta^j$ is given by:
+\begin{equation}\label{eq-loglike}
+L(\bbeta^1, \dots, \bbeta^J) = \sum_{n=1}^N f_n(<\xx_n^1, \bbeta^1>, \dots, <\xx_n^J, \bbeta^J>),
+\end{equation}
+where we have absorbed the dependence of each term on $y_n$ into the indexes of the base functions $f_n(u^1,\dots,u^J)$. With proper choice of nonlinear transformations, we can assume that the domain of $L$ is $\mathbb{R}^{\sum_j K^j}$, where $K^j$ is the dimensionality of $\bbeta^j$.
+
+This view of GLMs naturally unites single-parameter GLMs such as Binomial (with fixed number of trials) and Poisson, constant-dispersion two-parameter GLMs (e.g. normal and Gamma), varying-dispersion two-parameter GLMs (e.g. heteroscedastic normal regression), and multi-parameter models such as multinomial logit. Several examples are discussed in Section~\ref{section-using}.
+
+Our next step is to apply the chain rule of derivatives to Equation~\ref{eq-loglike} to express the high-dimensional ($\sum_j K^j$) derivatives of $L$ in terms of the low-dimensional ($J$) derivatives of $f_n$'s. We will see that the resulting expressions offer a natural way for modular implementation of GLM derivatives.
+
+\subsection{Application of chain rule}\label{subsection-chain-rule}
+First, we define our notation for representing derivative objects. We concatenate all $J$ coefficient vectors, $\bbeta^j$'s, into a single $\sum_j K^j$-dimensional vector, $\bbeta$:
+\begin{equation}
+\bbeta \equiv (\bbeta^{1,t}, \dots, \bbeta^{J,t})^t.
+\end{equation}
+The first derivative of log-likelihood can be written as:
+\begin{equation}
+\G(\bbeta) \equiv \frac{\partial L}{\partial \bbeta} = ((\frac{\partial L}{\partial \bbeta^1})^t, \dots, (\frac{\partial L}{\partial \bbeta^J})^t)^t,
+\end{equation}
+where
+\begin{equation}
+(\frac{\partial L}{\partial \bbeta^j})^t \equiv (\frac{\partial L}{\partial \beta_1^j}, \dots, \frac{\partial L}{\partial \beta_{K^j}^j}).
+\end{equation}
+For second derivatives we have:
+\begin{equation}
+\HH(\bbeta) \equiv \frac{\partial^2 L}{\partial \bbeta^2} = \left[ \frac{\partial^2 L}{\partial \bbeta^j \partial \bbeta^{j'}} \right]_{j,j'=1,\dots,J},
+\end{equation}
+where we have defined $\HH(\bbeta)$ in terms of $J^2$ matrix blocks:
+\begin{equation}
+\frac{\partial^2 L}{\partial \bbeta^j \partial \bbeta^{j'}} \equiv \left[ \frac{\partial L}{\partial \beta_k^j \partial \beta_{k'}^{j'}} \right]_{j=1,\dots,K^j; j'=1,\dots,K^{j'}}
+\end{equation}
+Applying the chain rule to the log-likelihood function of Equation~\ref{eq-loglike}, we derive expressions for its first and second derivatives as a function of the derivatives of the base functions $f_1,\dots,f_N$:
+\begin{equation}\label{eq-gradient}
+\frac{\partial L}{\partial \bbeta^j} = \sum_{n=1}^N \frac{\partial f_n}{\partial \bbeta^j} = \sum_{n=1}^N \frac{\partial f_n}{\partial u^j} \xx_n^j = \XX^{j,t} \g^j,
+\end{equation}
+with
+\begin{equation}
+\g^j \equiv (\frac{\partial f_1}{\partial u^j}, \dots, \frac{\partial f_N}{\partial u^j})^t,
+\end{equation}
+and
+\begin{equation}
+\XX^j \equiv (\xx_1^j, \dots, \xx_N^j)^t.
+\end{equation}
+Similarly, for the second derivative we have:
+\begin{equation}\label{eq-hessian}
+\frac{\partial^2 L}{\partial \bbeta^j \partial \bbeta^{j'}} = \sum_{n=1}^N \frac{\partial^2 f_n}{\partial \bbeta^j \partial \bbeta^{j'}} = \sum_{n=1}^N \frac{\partial^2 f_n}{\partial u^j \partial u^{j'}} \, (\xx_n^j \otimes \xx_n^{j'}) = \XX^{j,t} \hh^{jj'} \XX^{j'},
+\end{equation}
+where $\hh^{jj'}$ is a diagonal matrix of size $N$ with $n$'th diagonal element defined as:
+\begin{equation}
+h_n^{jj'} \equiv \frac{\partial^2 f_n}{\partial u^j \partial u^{j'}}
+\end{equation}
+We refer to the matrix form of the Equations~\ref{eq-gradient} and \ref{eq-hessian} as `compact' forms, and the explicit-sum forms as `explicit' forms. The expander functions in \pkg{RegressionFactory} use the compact form to implement the high-dimensional gradient and Hessian (see Section~\ref{subsection-expanders}), while the definiteness-invariance theorem below utilizes the explicit-sum form of Equation~\ref{eq-hessian}.
+
+\subsection{Definiteness invariance of Hessian}\label{subsection-invariance}
+\newtheorem{theorem:concavity_1}{Theorem}%[section]
+\begin{theorem:concavity_1} \label{theorem:concav_1}
+If all $f_n$'s in Equation~\ref{eq-loglike} have negative definite Hessians AND if at least one of $J$ matrices $\XX^j \equiv (\xx^j_1, \dots, \xx^j_N)^t$ is full rank, then $L(\bbeta^1,\dots,\bbeta^J)$ also has a negative-definite Hessian.
+\end{theorem:concavity_1}
+\begin{proof}
+To prove negative-definiteness of $\HH (\bbeta)$ (hereafter referred to as $\HH$ for brevity), we seek to prove that $ \pp^t \HH \pp$ is negative for all non-zero $\pp$ in $\mathbb{R}^{\sum_j K^j}$. We begin by decomposing $\pp$ into $J$ subvectors of length $K^j$ each:
+\begin{equation} \label{eq:pp}
+\pp = (\pp^{1,t}, \dots, \pp^{J,t})^t.
+\end{equation}
+We now have:
+\begin{eqnarray}
+\pp^t \HH \pp &=& \sum_{j,j'=1}^J \pp^{j,t} \, \frac{\partial^2 L}{\partial \bbeta^j \partial \bbeta^{j'}} \, \pp^{j'} \\
+&=& \sum_{j,j'} \pp^{j,t} \left( \sum_n \frac{\partial^2 f_n}{\partial u^j \partial u^{j'}} \: . \: (\xx_n^j \otimes \xx_n^{j'}) \right) \pp^{j'} \\
+&=& \sum_n \sum_{j,j'} \frac{\partial^2 f_n}{\partial u^j \partial u^{j'}} \: \pp^{j,t} \: (\xx_n^j \otimes \xx_n^{j'}) \: \pp^{j'}
+\end{eqnarray}
+If we define a set of new vectors $\qq_n$ as:
+\begin{eqnarray}
+\qq_n \equiv \begin{bmatrix} \pp^{1,t} \xx_n^1 & \cdots & \pp^{J,t} \xx_n^J \end{bmatrix},
+\end{eqnarray}
+and use $\hh_n$ to denote the $J$-by-$J$ Hessian of $f_n$:
+\begin{equation}
+\hh_n \equiv [ h_n^{jj'} ]_{j,j'=1,\dots,J},
+\end{equation}
+we can write:
+\begin{equation}
+\pp^t \HH \pp = \sum_n \qq_n^t \, \hh_n \, \qq_n.
+\end{equation}
+Since all $\hh_n$'s are assumed to be negative definite, all $\qq_n^t \, \hh_n \, \qq_n$ terms must be non-positive. Therefore, $\pp^t \HH \pp$ can be non-negative only if all its terms are zero, which is possible only if all $\qq_n$'s are zero vectors. This, in turn, means we must have $\pp^{j,t} \xx_n^j = 0,\:\: \forall \, n,j$. In other words, we must have $\XX^j \pp^j = \emptyset,\:\: \forall \, j$. This means that all $\XX^j$'s have non-singleton nullspaces and therefore cannot be full-rank, which contradicts our assumption. Therefore, $\pp^T \HH \pp$ must be negative. This proves that $\HH$ is negative definite.
+\end{proof}
+Proving negative-definiteness in the low-dimensional space of base functions is often much easier. For single-parameter distributions, we simply have to prove that the second derivative is negative. For two-parameter distributions, and according to Silvester's criterion~\citep{gilbert1991positive}, it is sufficient to show that both diagonal elements of the base-distribution Hessian as well as its determinant are negative. Note that negative-definiteness depends not only on the distribution but also on the choice of link function(s). For twice-differentiable functions, negative-definiteness of Hessian and log-concavity are equivalent~\citep{boyd2009convex}. \cite{gilks1992adaptive} have a list of log-concave distributions and link functions.
+
+\section{Implementation}\label{section-implement}
+\pkg{RegressionFactory} is a direct implementation of compact expressions in Equations~\ref{eq-gradient} and \ref{eq-hessian}. These expressions imply a code refactoring by separating model-specific steps (calculation of $\g^j$ and $\hh^{jj'}$) from generic steps (calculation of linear predictors $\XX^j \bbeta^j$ as well as $\XX^{j,t} \g^j$ and $\XX^{j,t} \hh^{jj'} \XX^{j'}$). This decomposition is captured diagramatically in the system flow diagram of Figure~\ref{figure-flow-diagram}.
+
+\begin{figure}
+\centering
+%\vspace{6pc}
+\includegraphics[scale=1.5]{regfac_flow_diagram.pdf}
+\caption[]{System flow diagram for \pkg{RegressionFactory}. The expander function is responsible for calculation of log-likelihood and its gradient and Hessian in the high-dimensional space of regression coefficients. It does so by calculating the linear predictors and supplying them to the base function, which is responsible for calculation of log-likelihood and its gradient and Hessian for each data point, in the low-dimensional space of the underlying probability distribution. The expander function converts these low-dimensional objects into the high-dimensional forms, using generic matrix-algebra operations.}.
+\label{figure-flow-diagram}
+\end{figure}
+
+\subsection{Expander functions}\label{subsection-expanders}
+Current implementation of \pkg{RegressionFactory} contains expander and base functions for one-parameter and two-parameter distributions. This covers the majority of interesting GLM cases, and a few more. A notable exception is multinomial regression models (such as logit and probit) which can have an unspecified number of slots. The package can be extended in the future to accommodate such more general cases.
+
+\subsubsection{Single-parameter expander function}\label{subsubsection-expanders-1d}
+Below is the source code for \code{regfac.expand.1par}:
+<<eval=FALSE>>=
+regfac.expand.1par <- function(beta, X, y, fbase1, fgh = 2, ...) {
+  # obtain base distribution derivatives
+  ret <- fbase1(X %*% beta, y, fgh, ...)
+  # expand base derivatives
+  f <- sum(ret$f)
+  if (fgh == 0) return (f)
+  g <- t(X) %*% ret$g
+  if (fgh == 1) return (list(f = f, g = g))
+  xtw <- 0*X
+  for (k in 1:ncol(X)) xtw[, k] <- X[, k] * ret$h
+  h <- t(xtw) %*% X
+  return (list(f = f, g = g, h = h))
+}
+@
+\code{beta} is the vector of coefficients, \code{X} is the matrix of covariates, \code{y} is the vector (or matrix) of response variable, \code{fbase1} is the single-parameter base function being expanded, and \code{fgh} is a flag indicating whether the gradient or Hessian must be returned or not. The \code{dots} argument (\code{...}) is used for passing special, fixed arguments such as the number of trials in a binomial regression. The vectorized function \code{fbase} is expected to return a list of three vectors: \code{f}, \code{g} and \code{h}, corresponding to the base distribution, its first derivative and its second derivative (all vectors of length $N$ or \code{nrow(X)}). The second and third elements correspond to $\g^1$ and $\hh^{11}$ in our notation. Several design aspects of the code are noteworthy for computational efficiency:
+\begin{enumerate}
+\item Since $\hh$ is diagonal, we only need to return the $N$ diagonal elements.
+\item For the same reason, rather than multiplying $\hh$ by $\XX$, we only multiply the vector of diagonal elements by each of the $K$ columns of $\XX$.
+\item The flag \code{fgh} controls whether a) only the function value must be returned (\code{fgh==0}), b) only the function and its first derivative must be returned (\code{fgh==1}), or c) the function as well as its first and second derivative must be returned (\code{fgh==2}). This allows optimization or sampling algorithms that do not the first or second derivative to avoid paying an unnecessary computational penalty. Since most often a higher-level derivative implies the need for lower-level derivative(s) (including the function as zero'th derivative), and also since the computational cost of higher derivatives is much higher, the \code{fgh} flag works in an incremental fashion (only 3 options) rather than covering all permutations of \code{f,g,h}.
+\end{enumerate}
+
+\subsubsection{Two-parameter expander function}\label{subsubsection-expanders-2d}
+Below is the source code for \code{regfac.expand.2par}, the 2D expander function in \pkg{RegressionFactory}:
+<<eval=FALSE>>=
+regfac.expand.2par <- function(coeff, X
+  , Z=matrix(1.0, nrow = nrow(X), ncol = 1)
+  , y, fbase2, fgh = 2, block.diag = FALSE
+  , ...) {
+  # extracting coefficients of X and Z
+  K1 <- ncol(X); K2 <- ncol(Z)
+  beta <- coeff[1:K1]
+  gamma <- coeff[K1 + 1:K2]
+  
+  # obtain base distribution derivatives
+  ret <- fbase2(X %*% beta, Z %*% gamma, y, fgh, ...)
+
+  # expand base derivatives
+  # function
+  f <- sum(ret$f)
+  if (fgh == 0) return (f)
+  # gradient
+  g <- c(t(X) %*% ret$g[, 1], t(Z) %*% ret$g[, 2])
+  if (fgh == 1) return (list(f = f, g = g))
+  # Hessian
+  h <- array(0, dim=c(K1+K2, K1+K2))
+  # XX block
+  xtw <- 0 * X
+  for (k in 1:K1) xtw[, k] <- X[, k] * ret$h[, 1]
+  h[1:K1, 1:K1] <- t(xtw) %*% X
+  # ZZ block
+  ztw <- 0 * Z
+  for (k in 1:K2) ztw[, k] <- Z[, k] * ret$h[, 2]
+  h[K1 + 1:K2, K1 + 1:K2] <- t(ztw) %*% Z
+	# XZ and ZX blocks
+  if (!block.diag) {
+	  ztw2 <- 0*Z
+	  for (k in 1:K2) ztw2[,k] <- Z[,k]*ret$h[,3]
+	  h[K1 + 1:K2, 1:K1] <- t(ztw2)%*%X
+	  h[1:K1, K1 + 1:K2] <- t(h[K1 + 1:K2, 1:K1])
+	}
+	
+  return (list(f = f, g = g, h = h))
+}
+@
+Aside from the same performance optimization techniques used for the one-parameter expander function, the two-parameter expander function has an additional parameter, \code{block.diag}. When \code{TRUE} it sets the cross-derivative terms between the two slots to zero. It can be useful in two scenarios: 1) When the full Hessian is not negative definite, but the Hessian for each parameter is. Block-diagonalization allows for optimization and sampling techniques that rely on this property to be used, at the expense of potentially slower convergence since the block-diagonalized Hessian is not accurate, 2) When optimization of one slot can proceed without knowledge of the value of the other slot, as in many two-parameter exponential family members where the dispersion parameter can be ignored in ML estimation of the mean parameter (e.g. in normal distribution).
+
+\subsection{Base distributions}\label{subsection-base-dist}
+Corresponding to the one-parameter and two-parameter expander functions, \pkg{RegressionFactory} offers many of the standard base distributions used in GLM models. Using the nomenclature of \code{glm}, current version contains the following base distributions and link functions:
+\begin{itemize}
+\item One-parameter distributions:
+\begin{itemize}
+\item Binomial (logit, probit, cauchit, cloglog)
+\item Poisson (log)
+\item Exponential (log)
+\item Geometric (logit)
+\end{itemize}
+\item Two-parameter distributions:
+\begin{itemize}
+\item Gaussian (identity / log)
+\item Inverse Gaussian (log / log)
+\item Gamma (log / log)
+\end{itemize}
+\end{itemize}
+
+A few points are worth mentioning regarding the choice of base distributions and link functions:
+\begin{enumerate}
+\item Naming convention: We generally follow this convention for single-parameter distributions:
+
+\code{fbase.<distribution>.<mean link function>}
+
+and this convention for two-parameter distributions:
+
+\code{fbase.<distribution>.<mean link function>.<dispersion link function>}
+
+There are can be exceptions. For example, in geometric regression
+
+\code{fbase.geometric.logit}
+
+the linear predictor is assumed to be \code{logit} of the sucess probability, which is inverse of the distribution mean. Thus, technically the link function is \code{-log(mu-1)}, but for brevity we simply refer to this link function as \code{logit}. Ultimately, naming conventions are less important than the definition of log-likelihood function, which combines the distribution and the link functions.
+
+\item Since the focus of \pkg{RegressionFactory} is on supporting optimization and sampling algorithms for GLM-like models, we are not interested in constant terms in the log-likelihood, i.e. terms that are independent of the regression coefficients. Therefore, we can omit them from the base functions for computational efficiency. An example is the log-factorial term in the Poisson base distribution. (Note that such constant terms are automatically differentiated out of the gradient and Hessian.) If needed, users can implement thin wrappers around the base functions to add the constant terms to the log-likelihood.
+\item Our preference is to choose link functions that map the natural domain of the distribution parameter to the real space. For example, in Poisson distribution the natural domain of the distribution mean is the positive real space. The \code{log} link function maps this natural domain to the entire real space. However, for \code{identity} and \code{sqrt} link functions the range is positive real space.
+\item We also prefer link functions that produce negative-definiteness for the entire Hessian, or at least for Hessian blocks (corresponding to a subset of the base-distribution parameters). This allow for more optimization/sampling algorithms that take advantage of concavity to be applied to the expanded log-likelihood (according to Theorem~\ref{theorem:concav_1}).
+\item We have chosen to absorb the link functions into the function names and their implementation, rather than making distribution names and lonk functions parameters of a single base function. Doing the latter is certainly possible, offering usability at computational cost. Our current choice is driven by the fact that the primary target of \pkg{RegressionFactory} is developers rather than end-users.
+\end{enumerate}
+
+\section[]{Using \pkg{RegressionFactory}}\label{section-using}
+The most basic application of \pkg{RegressionFactory} is to use the readily-available log-likelihood functions and derivatives. For example, one might be developing a Bayesian model where the log-likelihood is combined with the prior to form the posterior, which is then supplied to a sampling algorithm. Or one might be working on a new optimization algorithm and would like to test its correctness and performance on regression log-likelihood functions as an important use-case. Users can also supply their own base functions to the expander functions of \pkg{RegressionFactory} and readily obtain the log-likelihood and its derivatives. Implementation of functions for calculating base distribution derivatives is often quite simple, which can significantly reduce the time needed for prototyping a new regression model.
+
+There are two equivalent approaches for passing the log-likelihood functions to an optimization/sampling routine: 1) Pass the expander function as the primary function, and the base function as an argument of the primary function, 2) write a thin wrapper that combines the expander and base functions, and pass this wrapper function to the optimization/sampling routine. If the log-likelihood function must be added to another function (such as a prior), then the second approach is the only option where the wrapper implements the logic for adding the two functions. Due to its higher versatility as well as higher code readability, we recommend the second approach.
+
+The above point as well as other usage details are illustrated below, with several examples from single-parameter and double-parameter distributions.
+
+\subsection{Example 1: Bayesian GLM}
+The easiest way to take advantage of \pkg{RegressionFactory} is to utilize its standard GLM base functions in custom applications, either for testing the performance of a new optimization/sampling technique, or for composing more complex models from these lego blocks. In the first example, we show how a Bayesian GLM can be constructed in the \pkg{RegressionFactory} framework.
+
+We begin with a basic implementation of Bayesian logistic regression using flat normal priors on each coefficient. First we must load the package into our \proglang{R} session:
+<<eval=TRUE>>=
+library(RegressionFactory)
+@
+Log-likelihood for logistic regression can be readily constructed by applying the single-parameter expander function to the binomial base function and setting the number of trials equal to \code{1}:
+<<eval=TRUE>>=
+loglike.logistic <- function(beta, X, y, fgh) {
+  regfac.expand.1par(beta, X, y, fbase1.binomial.logit, fgh, n=1)
+}
+@
+We also need a prior for \code{beta}, which we assume to be a normal distribution on each of the \code{K} elements of \code{beta} with the same mean (\code{mu.beta}) and standard deviation (\code{sd.beta}):
+<<eval=TRUE>>=
+logprior.logistic <- function(beta, mu.beta, sd.beta, fgh) {
+  f <- sum(dnorm(beta, mu.beta, sd.beta, log=TRUE))
+  if (fgh==0) return (f)
+  g <- -(beta-mu.beta)/sd.beta^2
+  if (fgh==1) return (list(f=f, g=g))
+  h <- diag(-1/sd.beta^2, nrow=length(beta))
+  return (list(f=f, g=g, h=h))
+}
+@
+We can now combine the likelihood and prior according to Bayes rule to construct the log-posterior:
+<<eval=TRUE>>=
+logpost.logistic <- function(beta, X, y, mu.beta, sd.beta, fgh) {
+  ret.loglike <- loglike.logistic(beta, X, y, fgh)
+  ret.logprior <- logprior.logistic(beta, mu.beta, sd.beta, fgh)
+  regfac.merge(ret.loglike, ret.logprior, fgh=fgh)
+}
+@
+In the above, we have taken advantage of the utility function \code{regfac.merge} for combining two lists containing function values and its first two derivatives.
+
+In order to test the above posterior function, we simulate some data using the generative model for logistic regression and estimate the coefficients using \code{glm} for reference:
+<<eval=TRUE>>=
+N <- 1000
+K <- 5
+X <- matrix(runif(N*K, min=-0.5, max=+0.5), ncol=K)
+beta <- runif(K, min=-0.5, max=+0.5)
+y <- rbinom(N, size = 1, prob = 1/(1+exp(-X%*%beta)))
+beta.glm <- glm(y~X-1, family="binomial")$coefficients
+@
+We now draw \code{1000} MCMC samples from the posterior of \code{beta} using Stochastic Newton Sampler (SNS), via \proglang{R} package \pkg{sns}~\citep{mahani2014sns}. We are taking advantage of the fact that the sum of two negative-definite Hessians is also negative-definite, a condition needed by SNS. Also, we assume that \code{mu.beta} and \code{sd.beta} are both given to provide a non-informative prior on \code{beta}. Finally, we run \code{sns} in non-stochastic mode via the flag \code{rnd=FALSE} to allow for better comparison of output with \code{glm}:
+<<eval=TRUE>>=
+library(sns)
+nsmp <- 10
+mu.beta <- 0.0
+sd.beta <- 1000
+beta.smp <- array(NA, dim=c(nsmp,K)) 
+beta.tmp <- rep(0,K)
+for (n in 1:nsmp) {
+  beta.tmp <- sns(beta.tmp, fghEval=logpost.logistic, X=X, y=y
+    , mu.beta=mu.beta, sd.beta=sd.beta, fgh=2, rnd=FALSE)
+  beta.smp[n,] <- beta.tmp
+}
+beta.sns <- colMeans(beta.smp[(nsmp/2+1):nsmp,])
+cbind(beta.glm, beta.sns)
+@
+Next, we consider a less-trivial example. We create a hierarchical structure where coefficients of \code{J} groups are assumed to be pooled from normal distribution. This is a simple example of Hierarchical Bayesian models, which due to lack of explanatory variables at the upper level is reduced to a random-coefficient model. We begin with data generation to provide the reader with a tangible grasp of the assumed generative model:
+<<eval=TRUE>>=
+J <- 20
+mu.beta.hb <- runif(K, min=-0.5, max=+0.5)
+sd.beta.hb <- runif(K, min=0.5, max=1.0)
+X.hb <- list()
+y.hb <- list()
+beta.hb <- array(NA, dim=c(J,K))
+for (k in 1:K) {
+  beta.hb[,k] <- rnorm(J, mu.beta.hb[k], sd.beta.hb[k])
+}
+for (j in 1:J) {
+  X.hb[[j]] <- matrix(runif(N*K, min=-0.5, max=+0.5), ncol=K)
+  y.hb[[j]] <- rbinom(N, size=1, prob=1/(1+exp(-X%*%beta.hb[j,])))
+}
+@
+Again, we generate \code{glm} coefficient estimates for reference. Note that \code{glm} treats the groups completely independently of each other, i.e. without any pooling:
+<<eval=TRUE>>=
+beta.glm.all <- array(NA, dim=c(J,K))
+for (j in 1:J) {
+  beta.glm.all[j,] <- glm(y.hb[[j]]~X.hb[[j]]-1
+    , family="binomial")$coefficients
+}
+@
+Again, we draw samples from posterior on coefficients using SNS, turning the \code{rnd} flag off for better comparison. Also for code brevity and maintaining focus on how to use pkg{RegressionFactory}, we ignore sampling from the posterior of \code{mu.beta} and \code{sd.beta}, and assume their value is given. We must first construct the log-posteriors. Note that we do not need to change the definition of log-posteior, but the interpretation of \code{mu.beta} and \code{sd.beta} has changed fronm scalars to vector of length \code{K} each:
+<<eval=TRUE>>=
+beta.smp.hb <- array(NA, dim=c(nsmp,J,K)) 
+beta.tmp.hb <- array(0.0, dim=c(J,K))
+for (n in 1:nsmp) {
+  for (j in 1:J) {
+    beta.tmp.hb[j,] <- sns(beta.tmp.hb[j,], fghEval=logpost.logistic
+      , X=X.hb[[j]], y=y.hb[[j]]
+      , mu.beta=mu.beta.hb, sd.beta=sd.beta.hb, fgh=2, rnd=F)
+  }
+  beta.smp.hb[n,,] <- beta.tmp.hb
+}
+beta.sns.hb <- apply(beta.smp.hb[(nsmp/2+1):nsmp,,], c(2,3), mean)
+@
+We have taken advantage of conditional independence [ref] of the coefficients of each group, given the values of \code{mu.beta} and \code{sd.beta}. We examine the coefficients of the first few groups between \code{glm} and HB methods:
+<<eval=TRUE>>=
+head(beta.glm.all)
+head(beta.sns.hb)
+@
+Plotting unpooled (\code{glm}) and pooled (\code{sns}) coefficients shows the typical shrinkage pattern of Bayesian models.
+<<label=shrinkage_plot,include=FALSE,echo=TRUE>>=
+plot(beta.glm.all[,1], beta.sns.hb[,1]
+     , xlab="Unpooled Coefficients"
+     , ylab="Pooled Coefficients")
+abline(a=0, b=1)
+@
+
+\begin{figure}
+%\begin{center}
+<<label=fig1,fig=TRUE,echo=FALSE>>=
+<<shrinkage_plot>>
+@
+%\end{center}
+\caption{Pooling of logistic regression coefficients using a hierarchical Bayesian framework produces the familiar shrinkage towards the mean effect.}
+\label{fig-shrinkage}
+\end{figure}
+
+\subsection{Example 2: Double-parameter GLM with varying dispersion}
+As a second example, we consider a double-parameter GLM with varying dispersion, i.e., dependent on the covariates. As of version 0.7.1, \pkg{RegressionFactory} contains three double-parameter base distributions: Gaussian, inverse Gaussian, and Gamma. These double-parameter distributions can be used in a constant-dispersion or varying-dispersion setting. Constant-dispersion scenario is a special case of varying-dispersion scenario where the only covariate used to explain the dispersion parameter of the base distribution is intercept. This corresponds to the default value of \code{Z} in the function \code{regfac.expand.2par}.
+
+First, we load the \proglang{R} package \pkg{dglm}:
+<<eval=TRUE>>=
+library(dglm)
+@
+To use \pkg{RegressionFactory}, as before we implement a thin wrapper to combine the 2D expander with the normal base distribution:
+<<eval=TRUE>>=
+loglike.linreg <- function(coeff, X, y, fgh, vd = F) {
+  if (vd) regfac.expand.2par(coeff = coeff, X = X, Z = X, y = y
+    , fbase2 = fbase2.gaussian.identity.log, fgh = fgh, block.diag = F)
+  else regfac.expand.2par(coeff = coeff, X = X, y = y
+    , fbase2 = fbase2.gaussian.identity.log, fgh = fgh, block.diag = F)
+}
+@
+The boolean flag \code{vd} indicates whether we want to use covariates to explain the dispersion or not. If \code{FALSE}, the model is reduced to ordinary linear regression. Next, we simulate data according to the assumed generative model:
+<<eval=TRUE>>=
+N <- 1000
+K <- 5
+X <- matrix(runif(N*K, min=-0.5, max=+0.5), ncol=K)
+beta <- runif(K, min=-0.5, max=+0.5)
+gamma <- runif(K, min=-0.5, max=+0.5)
+mean.vec <- X%*%beta
+sd.vec <- exp(X%*%gamma)
+y <- rnorm(N, mean.vec, sd.vec)
+@
+We now estimate constant-dispersion and varying-dispersion models using the \proglang{R} commands \code{lm} and \code{dglm}:
+<<eval=TRUE>>=
+# constant-dispersion model
+est.glm <- lm(y~X-1)
+beta.glm <- est.glm$coefficients
+sigma.glm <- summary(est.glm)$sigma
+# varying-dispersion model
+est.dglm <- dglm(y~X-1, dformula = ~X-1, family = "gaussian", dlink = "log")
+beta.dglm <- est.dglm$coefficients
+gamma.dglm <- est.dglm$dispersion.fit$coefficients
+@
+Finally, we estimate the same models using the expander framework of \pkg{RegressionFactory}:
+<<eval=TRUE>>=
+# constant-dispersion
+coeff.smp <- array(NA, dim=c(nsmp, K+1)) 
+coeff.tmp <- rep(0, K+1)
+for (n in 1:nsmp) {
+  coeff.tmp <- sns(coeff.tmp, fghEval=loglike.linreg
+    , X=X, y=y, fgh=2, vd = F, rnd = F)
+  coeff.smp[n,] <- coeff.tmp
+}
+beta.sns.cd <- colMeans(coeff.smp[(nsmp/2+1):nsmp, 1:K])
+sigma.sns.cd <- sqrt(exp(mean(coeff.smp[(nsmp/2+1):nsmp, K+1])))
+cbind(beta.glm, beta.sns.cd)
+cbind(sigma.glm, sigma.sns.cd)
+# varying-dispersion
+coeff.smp <- array(NA, dim=c(nsmp, 2*K)) 
+coeff.tmp <- rep(0, 2*K)
+for (n in 1:nsmp) {
+  coeff.tmp <- sns(coeff.tmp, fghEval=loglike.linreg
+    , X=X, y=y, fgh=2, vd = T, rnd = F)
+  coeff.smp[n,] <- coeff.tmp
+}
+beta.sns.vd <- colMeans(coeff.smp[(nsmp/2+1):nsmp, 1:K])
+gamma.sns.vd <- colMeans(coeff.smp[(nsmp/2+1):nsmp, K+1:K])
+cbind(beta.dglm, beta.sns.vd)
+cbind(gamma.dglm, gamma.sns.vd)
+@
+Note that the mean coefficients from \pkg{dglm} and \pkg{RegressionFactory} match exactly in constant-dispersion case, but the dispersion parameters do not match since \code{dglm} uses a method of moments to estimate dispersion, rather than log-likelihood maximization. For varying-dispersion scenario, since mean and dispersion coefficients are estimated simultaneously, neither sets match exactly between the two methods, but they are very close, and the discrepancy becomes smaller for larger data.
+
+\subsection{Example 3: Geometric regression}
+In the last example, we illustrate how a new GLM regression can be easily constructed using the \pkg{RegressionFactory} framework. This involves three steps: 1) identify a base distribution, 2) select the link function(s), and 3) combine 1 and 2 to arrive at the log-likelihood function and its derivatives, preferrably to make the Hessian negative-definite. According to Theorem~\ref{theorem:concav_1}, this property can be proven in the base-distribution space, which is often quite easy. Consider the geometric distribution:
+\begin{equation}
+P(y=k; p) = (1-p)^{k-1}p.
+\end{equation}
+Using a logit link function for $p$, we arrive at the following log-likelihood:
+\begin{equation}
+f(u; y) = - \left( y \, u + (1 + y) \, \log {1 + e^{-u}} \right).
+\end{equation}
+Concavity of the above function can be easily verified:
+\begin{equation}
+f_{uu} = -(1 + y) e^u / (1 + e^u)^2 < 0
+\end{equation}
+The base function \code{fbase1.goemetric.logit} implements the above log-likelihood and its first two derivatives. To test the function, we first simulate data from the distribution:
+<<eval=TRUE>>=
+N <- 1000
+K <- 5
+X <- matrix(runif(N*K, min=-0.5, max=+0.5), ncol=K)
+beta <- runif(K, min=-0.5, max=+0.5)
+y <- rgeom(N, prob = 1/(1+exp(-X%*%beta)))
+@
+We now use SNS in non-stochastic mode (i.e. Newton optimization) to estimate the coefficients. We begin by our usual thin wrapper around the expander function to fully implement the log-likelihood.
+<<>>=
+loglike.geometric <- function(beta, X, y, fgh) {
+  regfac.expand.1par(beta, X, y, fbase1.geometric.logit, fgh)
+}
+beta.est <- rep(0,K)
+for (n in 1:10) {
+  beta.est <- sns(beta.est, fghEval=loglike.geometric
+    , X=X, y=y, fgh=2, rnd = F)
+}
+cbind(beta, beta.est)
+@
+
+\section{Summary}\label{section-summary}
+We presented \proglang{R} package \pkg{RegressionFactory}, a modular framework for evaluating GLM log-likelihood functions and their derivatives. We illustrated its utility in rapidly developing composite GLM models such as Hierarchical Bayesian as well as new regression models such as geometric and exponential regression. The accompanying definiteness-invariance theorem allows us to reason about logl-likelihood Hessian in a much lower-dimensional space.
+
+Another advantage of our modular implementation is that it allows for performance optimization strategies to be readily applied across all GLM models. For example, the linear algebra steps contained in the expansion functions \code{regfac.expand.1par} and \code{regfac.expand.2par} can be thoroughly studied from the following perspectives:
+\begin{itemize}
+\item Row-major vs. column-major layout of the covariate matrices $\XX^j$'s, for single-threaded and multi-threaded scenarios.
+\item Non-Uniform Memory Access (NUMA) implications of memory allocation for $\XX^j$'s.
+\item Loop and cache fusion strategies.
+\item Coarse- vs. fine-grained parallelization in composite models such as HB.
+\end{itemize}
+While base functions contain model-specific code, yet they also present broad optimization opportunities. For example, they are all vectorized by definition, suggesting that they can benefit from optimized Single-Instruction, Multiple-Data (SIMD) implementation. In particular, access to vectorized transcendental functions can greatly improve the peformance of many base functions. Many of the above issues have been studied here~\citep{mahani2013simd}. A natural next step for \pkg{RegressionFactory} would be to implement the expander and base functions in compiled code such as \proglang{C/C++}, which allows for many of the advanced optimization techniques to be applicable subsequently.
+
+% add: 1) mention of survival in framework, 2)
+
+\bibliography{RegressionFactory}
+\end{document}
+
