@@ -1,3 +1,7 @@
+Changes in version 0.7.2
+  * Changed maintainer email address
+  * Added import line to comply with recent changes to CRAN requirements
+
 Changes in version 0.7.1
   * Added source file for 2-parameter base distributions (fbase.2par.R)
   * Added examples for each base distribution

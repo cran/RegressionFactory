@@ -1,7 +1,6 @@
-#exportPattern("^[[:alpha:]]+")
-
 export(regfac.expand.1par, regfac.expand.2par, regfac.merge
   , fbase1.poisson.log, fbase1.exponential.log, fbase1.geometric.logit
   , fbase1.binomial.logit, fbase1.binomial.probit, fbase1.binomial.cauchit, fbase1.binomial.cloglog
   , fbase2.gaussian.identity.log, fbase2.gamma.log.log, fbase2.inverse.gaussian.log.log)
 
+importFrom("stats", "dcauchy", "dnorm", "pcauchy", "pnorm")
