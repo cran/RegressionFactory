@@ -205,79 +205,7 @@ abline(a=0, b=1)
 
 
 ###################################################
-### code chunk number 16: RegressionFactory.Rnw:470-471
-###################################################
-library(dglm)
-
-
-###################################################
-### code chunk number 17: RegressionFactory.Rnw:474-480
-###################################################
-loglike.linreg <- function(coeff, X, y, fgh, vd = F) {
-  if (vd) regfac.expand.2par(coeff = coeff, X = X, Z = X, y = y
-    , fbase2 = fbase2.gaussian.identity.log, fgh = fgh, block.diag = F)
-  else regfac.expand.2par(coeff = coeff, X = X, y = y
-    , fbase2 = fbase2.gaussian.identity.log, fgh = fgh, block.diag = F)
-}
-
-
-###################################################
-### code chunk number 18: RegressionFactory.Rnw:483-491
-###################################################
-N <- 1000
-K <- 5
-X <- matrix(runif(N*K, min=-0.5, max=+0.5), ncol=K)
-beta <- runif(K, min=-0.5, max=+0.5)
-gamma <- runif(K, min=-0.5, max=+0.5)
-mean.vec <- X%*%beta
-sd.vec <- exp(X%*%gamma)
-y <- rnorm(N, mean.vec, sd.vec)
-
-
-###################################################
-### code chunk number 19: RegressionFactory.Rnw:494-502
-###################################################
-# constant-dispersion model
-est.glm <- lm(y~X-1)
-beta.glm <- est.glm$coefficients
-sigma.glm <- summary(est.glm)$sigma
-# varying-dispersion model
-est.dglm <- dglm(y~X-1, dformula = ~X-1, family = "gaussian", dlink = "log")
-beta.dglm <- est.dglm$coefficients
-gamma.dglm <- est.dglm$dispersion.fit$coefficients
-
-
-###################################################
-### code chunk number 20: RegressionFactory.Rnw:505-529
-###################################################
-# constant-dispersion
-coeff.smp <- array(NA, dim=c(nsmp, K+1)) 
-coeff.tmp <- rep(0, K+1)
-for (n in 1:nsmp) {
-  coeff.tmp <- sns(coeff.tmp, fghEval=loglike.linreg
-    , X=X, y=y, fgh=2, vd = F, rnd = F)
-  coeff.smp[n,] <- coeff.tmp
-}
-beta.sns.cd <- colMeans(coeff.smp[(nsmp/2+1):nsmp, 1:K])
-sigma.sns.cd <- sqrt(exp(mean(coeff.smp[(nsmp/2+1):nsmp, K+1])))
-cbind(beta.glm, beta.sns.cd)
-cbind(sigma.glm, sigma.sns.cd)
-# varying-dispersion
-coeff.smp <- array(NA, dim=c(nsmp, 2*K)) 
-coeff.tmp <- rep(0, 2*K)
-for (n in 1:nsmp) {
-  coeff.tmp <- sns(coeff.tmp, fghEval=loglike.linreg
-    , X=X, y=y, fgh=2, vd = T, rnd = F)
-  coeff.smp[n,] <- coeff.tmp
-}
-beta.sns.vd <- colMeans(coeff.smp[(nsmp/2+1):nsmp, 1:K])
-gamma.sns.vd <- colMeans(coeff.smp[(nsmp/2+1):nsmp, K+1:K])
-cbind(beta.dglm, beta.sns.vd)
-cbind(gamma.dglm, gamma.sns.vd)
-
-
-###################################################
-### code chunk number 21: RegressionFactory.Rnw:547-552
+### code chunk number 16: RegressionFactory.Rnw:480-485
 ###################################################
 N <- 1000
 K <- 5
@@ -287,7 +215,7 @@ y <- rgeom(N, prob = 1/(1+exp(-X%*%beta)))
 
 
 ###################################################
-### code chunk number 22: RegressionFactory.Rnw:555-564
+### code chunk number 17: RegressionFactory.Rnw:488-497
 ###################################################
 loglike.geometric <- function(beta, X, y, fgh) {
   regfac.expand.1par(beta, X, y, fbase1.geometric.logit, fgh)

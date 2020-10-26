@@ -29,7 +29,7 @@ A list with elements \code{f,g,h} corresponding to the function, gradient vector
 \references{
 Mahani, Alireza S. and Sharabiani, Mansour T.A. (2013)
 \emph{Metropolis-Hastings Sampling Using Multivariate Gaussian Tangents}
-\url{http://arxiv.org/pdf/1308.0657v1.pdf} 
+\url{https://arxiv.org/pdf/1308.0657v1.pdf} 
 }
 \author{
 Alireza S. Mahani, Mansour T.A. Sharabiani

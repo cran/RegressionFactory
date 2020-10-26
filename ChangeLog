@@ -1,3 +1,9 @@
+Changes in version 0.7.4
+  * Fixed citations in man pages.
+
+Changes in version 0.7.3
+  * Removed code reference to dglm R package in vignette, as well as the suggestion in the DESCRIPTION file.
+
 Changes in version 0.7.2
   * Changed maintainer email address
   * Added import line to comply with recent changes to CRAN requirements
