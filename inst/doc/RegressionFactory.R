@@ -1,5 +1,4 @@
 ### R code from vignette source 'RegressionFactory.Rnw'
-### Encoding: UTF-8
 
 ###################################################
 ### code chunk number 1: RegressionFactory.Rnw:101-102

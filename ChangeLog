@@ -1,3 +1,9 @@
+Changes in version 0.7.5
+  * Added canonical Authors@R metadata required by CRAN.
+  * Fixed Rd markup in the binomial base log-likelihood documentation.
+  * Used canonical HTTPS CRAN URLs in the vignette bibliography.
+  * Compacted vignette PDFs for CRAN.
+
 Changes in version 0.7.4
   * Fixed citations in man pages.
 
@@ -16,4 +22,3 @@ Changes in version 0.7.1
   * Added ... as additional argument for expander and base functions
   * Added utility function regfac.merge for combining output of two functions, each containing an f,g,h list
   * Change naming convention for base distributions (using fbase1 and fbase2, and link functions)
-

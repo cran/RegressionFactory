@@ -2,14 +2,20 @@ Package: RegressionFactory
 Type: Package
 Title: Expander Functions for Generating Full Gradient and Hessian from
         Single-Slot and Multi-Slot Base Distributions
-Version: 0.7.4
-Date: 2020-10-26
-Author: Alireza S. Mahani, Mansour T.A. Sharabiani
-Maintainer: Alireza S. Mahani <alireza.s.mahani@gmail.com>
+Version: 0.7.5
+Date: 2026-09-01
+Authors@R: c(
+    person(given = c("Alireza", "S."), family = "Mahani",
+           role = c("aut", "cre"), email = "alireza.s.mahani@gmail.com"),
+    person(given = c("Mansour", "T.A."), family = "Sharabiani",
+           role = "aut"))
 Description: The expander functions rely on the mathematics developed for the Hessian-definiteness invariance theorem for linear projection transformations of variables, described in authors' paper, to generate the full, high-dimensional gradient and Hessian from the lower-dimensional derivative objects. This greatly relieves the computational burden of generating the regression-function derivatives, which in turn can be fed into any optimization routine that utilizes such derivatives. The theorem guarantees that Hessian definiteness is preserved, meaning that reasoning about this property can be performed in the low-dimensional space of the base distribution. This is often a much easier task than its equivalent in the full, high-dimensional space. Definiteness of Hessian can be useful in selecting optimization/sampling algorithms such as Newton-Raphson optimization or its sampling equivalent, the Stochastic Newton Sampler. Finally, in addition to being a computational tool, the regression expansion framework is of conceptual value by offering new opportunities to generate novel regression problems.
 License: GPL (>= 2)
 Suggests: sns, MfUSampler
 NeedsCompilation: no
-Packaged: 2020-10-26 06:20:03 UTC; ec2-user
+Packaged: 2026-09-02 01:50:55 UTC; alire
+Author: Alireza S. Mahani [aut, cre],
+  Mansour T.A. Sharabiani [aut]
+Maintainer: Alireza S. Mahani <alireza.s.mahani@gmail.com>
 Repository: CRAN
-Date/Publication: 2020-10-26 06:30:07 UTC
+Date/Publication: 2026-09-02 12:30:08 UTC

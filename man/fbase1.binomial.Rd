@@ -29,7 +29,7 @@ If \code{fgh==0}, the \code{logit} version returns \code{-(n*log(1+exp(-u))+(n-y
 }
 
 \note{
-In all base log-likelihood functions, we have dropped any additive terms that are independent of the distribution parameter, e.g. constant terms or those terms that are dependent on the response variable only. This is done for computational efficiency. Therefore, these functions cannot be used to obtain the absolute values of log-likelihood functions but only in the context of optimization and/or sampling. Users can write thin wrappers around these functions to add the constant terms to the function value. (Derivatives do not need correction. For binomial family, all factorial terms are ignored since they only depend on \code{n} and {y}.)
+In all base log-likelihood functions, we have dropped any additive terms that are independent of the distribution parameter, e.g. constant terms or those terms that are dependent on the response variable only. This is done for computational efficiency. Therefore, these functions cannot be used to obtain the absolute values of log-likelihood functions but only in the context of optimization and/or sampling. Users can write thin wrappers around these functions to add the constant terms to the function value. (Derivatives do not need correction. For binomial family, all factorial terms are ignored since they only depend on \code{n} and \code{y}.)
 }
 
 \author{
